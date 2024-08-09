@@ -1,0 +1,34 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: example-1
+  labels:
+    app.kubernetes.io/name: demo-app
+    app.kubernetes.io/component: demo-app-service
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: demo-app
+    app.kubernetes.io/component: demo-app-pod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app2
+  namespace: example-1
+  labels:
+    app.kubernetes.io/name: demo-app2
+    app.kubernetes.io/component: demo-app2-service
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: demo-app2
+    app.kubernetes.io/component: demo-app2-pod
