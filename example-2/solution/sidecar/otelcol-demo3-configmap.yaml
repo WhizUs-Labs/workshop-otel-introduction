@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otelcol-demo3-configmap
+  namespace: example-2
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector    
+data:
+  relay: |
+    exporters:
+      debug: {}
+      otlp:
+        endpoint: otel-collector-agent.example-2:4317
+        tls:
+          insecure: true
+
+    processors:
+      batch: {}
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 127.0.0.1:4317
+          http:
+            endpoint: 127.0.0.1:4318
+
+    service:
+      pipelines:
+        traces:
+          exporters:
+          - otlp
+          processors:
+          - batch
+          receivers:
+          - otlp

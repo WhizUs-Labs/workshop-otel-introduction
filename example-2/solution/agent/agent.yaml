@@ -1,0 +1,176 @@
+---
+# Source: opentelemetry-collector/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector-agent
+  namespace: example-2
+  labels:
+    helm.sh/chart: opentelemetry-collector-0.101.2
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/instance: otel-collector
+    app.kubernetes.io/version: "0.106.1"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: opentelemetry-collector/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-agent
+  namespace: example-2
+  labels:
+    helm.sh/chart: opentelemetry-collector-0.101.2
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/instance: otel-collector
+    app.kubernetes.io/version: "0.106.1"
+    app.kubernetes.io/managed-by: Helm
+    
+data:
+  relay: |
+    exporters:
+      debug: {}
+      otlp/jaeger:
+        endpoint: jaeger-all-in-one-collector.monitoring:4317
+        tls:
+          insecure: true
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+    processors:
+      batch: {}
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+    service:
+      extensions:
+      - health_check
+      pipelines:
+        traces:
+          exporters:
+          - otlp/jaeger
+          processors:
+          - batch
+          receivers:
+          - otlp
+---
+# Source: opentelemetry-collector/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-agent
+  namespace: example-2
+  labels:
+    helm.sh/chart: opentelemetry-collector-0.101.2
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/instance: otel-collector
+    app.kubernetes.io/version: "0.106.1"
+    app.kubernetes.io/managed-by: Helm
+    
+    component: standalone-collector
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+      appProtocol: grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/instance: otel-collector
+    component: standalone-collector
+  internalTrafficPolicy: Cluster
+---
+# Source: opentelemetry-collector/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-agent
+  namespace: example-2
+  labels:
+    helm.sh/chart: opentelemetry-collector-0.101.2
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/instance: otel-collector
+    app.kubernetes.io/version: "0.106.1"
+    app.kubernetes.io/managed-by: Helm
+    
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent
+      app.kubernetes.io/instance: otel-collector
+      component: standalone-collector
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: fab3b4bee2d32184b4d7e88e04cb072ab3cc2fd8b2881e97b9fe1b6bfb63d1ab
+        
+      labels:
+        app.kubernetes.io/name: agent
+        app.kubernetes.io/instance: otel-collector
+        component: standalone-collector
+        
+    spec:
+      
+      serviceAccountName: otel-collector-agent
+      containers:
+        - name: opentelemetry-collector
+          args:
+            - --config=/conf/relay.yaml
+          resources:
+            limits:
+              cpu: 200m
+              memory: 200Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          image: "otel/opentelemetry-collector-k8s:0.106.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: otlp
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: health
+              protocol: TCP
+              containerPort: 13133
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          volumeMounts:
+            - mountPath: /conf
+              name: opentelemetry-collector-configmap
+      volumes:
+        - name: opentelemetry-collector-configmap
+          configMap:
+            name: otel-collector-agent
+            items:
+              - key: relay
+                path: relay.yaml
+      hostNetwork: false
