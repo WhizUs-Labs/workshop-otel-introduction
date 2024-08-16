@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-configmap
+  namespace: example-2
+  labels:
+    app.kubernetes.io/name: otel-collector-configmap
+    app.kubernetes.io/component: demo-app-sidecar-configmap    
+data:
+  relay: |
+    <collectors-config>
